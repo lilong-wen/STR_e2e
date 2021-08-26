@@ -13,10 +13,10 @@ from typing import Dict, List
 
 from util.misc import NestedTensor, is_main_process
 
-from .position_encoding import build_position_encoding
+from .positional_encoding import build_position_encoding
 
 
-from chk import checkpoint_sequential_step, checkpoint
+from .chk import checkpoint_sequential_step, checkpoint
 import math
 import numpy as np
 from torchvision.utils import save_image
@@ -61,9 +61,12 @@ class Gate(nn.Module):
 
     def forward(self, x):
         t0,t1 = torch.chunk(x, ngates, dim=1)
-        t0 = torch.tanh_(t0)
-        t1.sub_(2)
-        t1 = torch.sigmoid_(t1)
+        # t0 = torch.tanh_(t0)
+        t0 = torch.tanh(t0)
+        # t1.sub_(2)
+        t1 = t1.sub(2)
+        # t1 = torch.sigmoid_(t1)
+        t1 = torch.sigmoid(t1)
 
         return t1*t0
 
@@ -101,7 +104,7 @@ class GateBlock(nn.Module):
 
     def forward(self, x):
         if self.gc >= 1:
-          y = checkpoint(customGC(self.sq), x)
+            y = checkpoint(customGC(self.sq), x)
         else:
           y = self.sq(x)
 
@@ -207,11 +210,15 @@ class PositionalEncoding(nn.Module):
 class Joiner(nn.Sequential):
     def __init__(self, backbone, position_embedding):
         super().__init__(backbone, position_embedding)
+        self.backbone = backbone
+        self.position_embedding = position_embedding
 
     def forward(self, x_input):
-        out = self[0](x_input)
-        pos = self[1](x_input).to(out.tensors.dtype)
-
+        # out = self[0](x_input)
+        out = self.backbone(x_input)
+        # pos = self[1](out).to(out.dtype)
+        pos = self.position_embedding(out).to(out.dtype)
+        pos = pos.repeat(out.shape[0], 1, 1)
         return out, pos
 
 @gin.configurable

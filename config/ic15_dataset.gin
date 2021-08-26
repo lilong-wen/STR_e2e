@@ -1,0 +1,9 @@
+IC15.file_list = "/home/zju/w4/STR_e2e/ic15/train.ln"
+IC15.label_path = "/home/zju/w4/datasets/ic15/train_gt/"
+IC15.image_path = "/home/zju/w4/datasets/ic15/train/"
+IC15.ralph_path = "/home/zju/w4/STR_e2e/ic15/alph.npy"
+IC15.num = 50
+
+get_images.size = 768
+get_images.extend = ".jpg"
+get_images.n_dim = 3

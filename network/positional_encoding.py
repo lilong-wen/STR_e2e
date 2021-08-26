@@ -5,8 +5,9 @@ Various positional encodings for the transformer.
 import math
 import torch
 from torch import nn
-
+import gin
 from util.misc import NestedTensor
+from torch.autograd import Variable
 
 
 class PositionalEncoding(nn.Module):
@@ -16,7 +17,7 @@ class PositionalEncoding(nn.Module):
         self.dropout = nn.Dropout(p=dropout)
 
         # Compute the positional encodings once in log space.
-        pe = torch.zeros(max_len, d_model)
+        pe = torch.zeros(max_len, d_model) # 5000, 80
         position = torch.arange(0, max_len).unsqueeze(1)
         div_term = torch.exp(torch.arange(0, d_model, 2) *
                              -(math.log(10000.0) / d_model))
@@ -26,9 +27,11 @@ class PositionalEncoding(nn.Module):
         self.register_buffer('pe', pe)
 
     def forward(self, x):
-        x = x + Variable(self.pe[:, :x.size(1)],
+
+        print(f"pe.shape: {self.pe.shape}")
+        out = Variable(self.pe[:, :x.size(1)],
                          requires_grad=False)
-        return self.dropout(x)
+        return out
 
 class PositionEmbeddingSine(nn.Module):
     """
@@ -99,13 +102,14 @@ class PositionEmbeddingLearned(nn.Module):
 
 @gin.configurable
 def build_position_encoding(hidden_dim, method, dropout):
-    N_steps = hidden_dim // 2
+    # N_steps = hidden_dim // 2
+    N_steps = hidden_dim
     if method == 'sine':
         # TODO find a better way of exposing other arguments
         position_embedding = PositionEmbeddingSine(N_steps, normalize=True)
     elif method == 'learned':
         position_embedding = PositionEmbeddingLearned(N_steps)
-    elif method = '1d':
+    elif method == '1d':
         position_embedding = PositionalEncoding(N_steps, dropout)
     else:
         raise ValueError(f"not supported")

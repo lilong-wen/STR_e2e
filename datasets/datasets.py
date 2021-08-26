@@ -210,12 +210,14 @@ class ICDAR2015(data.Dataset):
             words.append(word)
         return bboxes, words
 
-    def pull_item(self, index):
+    def pull_item(self, index, num=100):
         # if self.get_imagename(index) == 'img_59.jpg':
         #     pass
         # else:
         #     return [], [], [], [], np.array([0])
         image, character_bboxes, words = self.load_image_gt(index)
+        # print(image.shape)
+        image = rescale_img(image, character_bboxes, image.shape[0], image.shape[1])
 
         image = Image.fromarray(image)
         image = image.convert('RGB')
@@ -226,7 +228,15 @@ class ICDAR2015(data.Dataset):
 
         image = torch.from_numpy(image).float().permute(2, 0, 1)
 
-        return image, character_bboxes, words
+        # return image, character_bboxes, words
+        # for i in range(num - len(words)):
+        #     words.append('000')
+        words = np.asarray(words, dtype=np.str)
+        words = np.pad(words, (0, num - len(words)), 'reflect')
+        words = list(words)
+
+        return image, words
+        # return {"image": image, "text": words}
 
 
 if __name__ == '__main__':
@@ -234,19 +244,21 @@ if __name__ == '__main__':
     dataloader = ICDAR2015('/home/zju/w4/datasets/ic15', target_size=768, viz=True)
     train_loader = torch.utils.data.DataLoader(
         dataloader,
-        batch_size=1,
-        shuffle=False,
+        batch_size=4,
+        shuffle=True,
         num_workers=0,
         drop_last=True,
         pin_memory=True)
+    '''
     total = 0
     total_sum = 0
     for index, (opimage, bboxes, words) in enumerate(train_loader):
         total += 1
         img = opimage[0].numpy().transpose(1, 2, 0)
         img = cv2.cvtColor(np.asarray(img),cv2.COLOR_RGB2BGR) * 255.
-        print(img)
+        # print(img)
         print(img.shape)
+        print(words.shape)
         bboxes = bboxes.cpu().numpy()[0]
         # print(bboxes.shape)
         for box in bboxes:
@@ -260,3 +272,9 @@ if __name__ == '__main__':
         # print(bboxes)
         # print(index, words)
         break
+    '''
+    it = iter(train_loader)
+    first = next(it)
+    # print(first["image"].shape)
+    # print(first["text"])
+    print(first[1])

@@ -2,12 +2,20 @@ port = 12345
 manualSeed = 1111
 dist = 'DDP'
 
+lr = 0.0001
+weight_decay = 0.0001
+lr_drop = 5
+batch_size = 2
+num_workers = 5 # change here
+save_path = "/home/zju/w4/STR_e2e/saved/"
+device = 'cuda'
+
 n_channels = 1
 o_classes = 80
 
 GradCheck = 0
 
-D_model = 1100
+D_model = 80
 # # Parameters for get_images (ds_load.py):
 # # ==============================================================================
 # get_images.max_w = 750
@@ -74,13 +82,6 @@ OrigamiNet.lreszs = {
                   11: @s2/Upsample()
             }
 
-# similarity measuer part
-OrigamiNet.VOCAB_SIZE = 10000
-OrigamiNet.EMBEDDING_DIM = 80
-OrigamiNet.RNN_UNITS = 64
-OrigamiNet.BI_RNN = True
-OrigamiNet.RNN_LAYERS = 2
-
 
 # Parameters for InitBlock (cnv_model.py):
 # ==============================================================================
@@ -97,11 +98,11 @@ build_position_encoding.method = '1d'
 build_position_encoding.dropout = 0.1
 
 ## backbone
-build_backbone.lr_backbone = 0.01
+
 
 ## transformer
 Transformer.d_model = %D_model
-Transformer.nhead = 8
+Transformer.nhead = 10
 Transformer.num_encoder_layers = 6
 Transformer.num_decoder_layers = 6
 Transformer.dim_feedforward = 2048
@@ -111,6 +112,26 @@ Transformer.normalize_before = False
 Transformer.return_intermediate_dec = False
 
 # Parameters for TextEncoder
-TextEncoder.bert_base_model = 'emilyalsentzer/Bio_ClinicalBERT'
-TextEncoder.out_dim = 1100
-TextEncoder.freeze_layers = [0,1,2,3,4,5]
+# TextEncoder.bert_base_model = 'emilyalsentzer/Bio_ClinicalBERT'
+# TextEncoder.out_dim = 200
+# TextEncoder.freeze_layers = [0,1,2,3,4,5]
+
+# Parameters for build_quester
+build_quester.device = %device
+build_quester.query_len = 200
+
+#Parameters for query_generate_dct_phoc
+
+#Parameters for dataset
+build_dataset.train_file_list = "/home/zju/w4/STR_e2e/ic15/train.ln"
+build_dataset.train_label_path = "/home/zju/w4/datasets/ic15/train_gt/"
+build_dataset.train_image_path = "/home/zju/w4/datasets/ic15/train/"
+build_dataset.test_file_list = "/home/zju/w4/STR_e2e/ic15/test.ln"
+build_dataset.test_label_path = "/home/zju/w4/datasets/ic15/train_gt/"
+build_dataset.test_image_path = "/home/zju/w4/datasets/ic15/train/"
+build_dataset.ralph_path = "/home/zju/w4/STR_e2e/ic15/alph.npy"
+build_dataset.num = 50
+
+get_images.size = 768
+get_images.extend = ".jpg"
+get_images.n_dim = 3

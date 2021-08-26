@@ -2,6 +2,5 @@
 # aka Quester
 from .quester import build
 
-
-def build_model(args):
-    return build(args)
+def build_model():
+    return build()

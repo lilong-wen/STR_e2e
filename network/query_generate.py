@@ -1,3 +1,7 @@
+'''
+input: ['abdad;:fas;:dfas', 'asdfa;:asfas']
+output: (N, query_num, emb_len)
+'''
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,7 +19,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 class TextEncoder(nn.Module):
     '''
     input: string with maxlen
-    output: N*1100 dim
+    output: N*80 dim
     '''
     def __init__(self, bert_base_model, out_dim, freeze_layers):
         super().__init__()
@@ -42,18 +46,32 @@ class TextEncoder(nn.Module):
     def mean_pooling(self, model_output, attention_mask):
 
         token_embeddings = model_output[0] #First element of model_output contains all token embeddings
+        # print(f"token_embeddings.shape: {token_embeddings.shape}")
+        # print(f"attention_mask.shape: {attention_mask.shape}")
         input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        # print(f"input_mask_expanded.shape: {input_mask_expanded.shape}")
         sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
+
+        print(f"sum_embeddings.shape: {sum_embeddings.shape}")
+        # print(f"sum_embeddings.shape: {sum_embeddings.shape}")
         sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
         return sum_embeddings / sum_mask
+
+    def split_input(self, input_target):
+        '''
+        input like: ['abc;;;def','ksdf;;;asfdas;;;asdfa']
+        '''
+        split_list = [t.split(";:") for t in input_target]
+
+        return split_list
 
     def encoder(self, encoded_inputs):
 
         encoded_inputs_tokens = self.tokenizer(encoded_inputs,
                                                return_tensors="pt",
                                                padding=True,
-                                               truncation=False).to(device)
+                                               truncation=False) #.to(device)
 
         outputs = self.bert_model(**encoded_inputs_tokens)
 
@@ -66,12 +84,34 @@ class TextEncoder(nn.Module):
 
         return out_emb
 
-    def forward(self, encoded_inputs):
+    def forward(self, encoded_inputs, num):
 
-        # print(encoded_inputs)
-        zls = self.encoder(encoded_inputs)
+        output_list = []
+        output_list_mask = []
+        splited_encoded_inputs = self.split_input(encoded_inputs)
 
-        return zls
+        for item in splited_encoded_inputs:
+            item_out = self.encoder(item)
+            item_out_mask = torch.ones(item_out.shape)
+            item_out = torch.nn.functional.pad(item_out,
+                                               (0,0,0,num-item_out.shape[0]),
+                                               mode='constant',
+                                               value=0)
+            item_out_mask = torch.nn.functional.pad(item_out_mask,
+                                               (0,0,0,num-item_out_mask.shape[0]),
+                                               mode='constant',
+                                               value=0)
+            print(item_out.shape)
+            print(item_out_mask.shape)
+            output_list.append(item_out.unsqueeze(0))
+
+            output_list_mask.append(item_out_mask.unsqueeze(0))
+
+        #zls = zls.unsqueeze(-1).repeat(1, 1, dims)
+        zls = torch.cat(output_list)
+
+        zls_mask = torch.cat(output_list_mask)
+        return zls, zls_mask
 
 
 def build_query():
