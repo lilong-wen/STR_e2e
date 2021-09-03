@@ -1,0 +1,10 @@
+## transformer
+Transformer.d_model = 512
+Transformer.nhead = 8
+Transformer.num_encoder_layers = 6
+Transformer.num_decoder_layers = 6
+Transformer.dim_feedforward = 2048
+Transformer.dropout = 0.1
+Transformer.activation = 'relu'
+Transformer.normalize_before = False
+Transformer.return_intermediate_dec = False

@@ -8,12 +8,11 @@ from torch import nn
 import numpy as np
 
 from .backbone import build_backbone
-# from .query_generate import build_query
-from .query_generate_dct_phoc import encode_input_string_new as build_query
+from .query_generate import build_query
+# from .query_generate_dct_phoc import encode_input_string_new as build_query
 
 # from .transformer_full import build_transformer
-# from .transformer_decoder import build_transformer_decoder
-from .decoder import build_transformer_decoder
+from .transformer_decoder import build_transformer_decoder
 from .utils import CTCLabelConverter
 import gin
 
@@ -36,14 +35,27 @@ class QUESTER(nn.Module):
         self.transformer = transformer
         hidden_dim = transformer.d_model
         self.confidence_embed = MLP(hidden_dim, hidden_dim, 1, 3)
-        self.query_embed = nn.Embedding(num_queries, hidden_dim)
+        self.query_embed = nn.Embedding(num_queries, hidden_dim * query_len)
 
         self.backbone = backbone
         self.aux_loss = aux_loss
 
     def forward(self, samples, target):
+        """ The forward expects a NestedTensor, which consists of:
+               - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
+               - samples.mask: a binary mask of shape [batch_size x H x W], containing 1 on padded pixels
 
-        features, pos = self.backbone(samples) # N 1100 512
+            It returns a dict with the following elements:
+               - "pred_logits": the classification logits (including no-object) for all queries.
+                                Shape= [batch_size x num_queries x (num_classes + 1)]
+               - "pred_boxes": The normalized boxes coordinates for all queries, represented as
+                               (center_x, center_y, height, width). These values are normalized in [0, 1],
+                               relative to the size of each individual image (disregarding possible padding).
+                               See PostProcess for information on how to retrieve the unnormalized bounding box.
+               - "aux_outputs": Optional, only returned when auxilary losses are activated. It is a list of
+                                dictionnaries containing the two above keys for each decoder layer.
+        """
+        features, pos = self.backbone(samples)
         query_items, _ = self.query_gen(target)
         # print(f"features.shape: {features.shape}")
         # print(f"pos.shape: {pos.shape}")
@@ -195,8 +207,8 @@ def build_quester(device, query_len, num_queries):
     backbone = build_backbone()
     # transformer = build_transformer(args)
     transformer = build_transformer_decoder()
-    # query_gen = build_query()
-    query_gen = build_query
+    query_gen = build_query()
+    # query_gen = build_query
 
     model = QUESTER(
         backbone,

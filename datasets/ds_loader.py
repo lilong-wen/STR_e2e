@@ -13,8 +13,9 @@ import imageio
 from math import floor, ceil
 import pickle
 import gin
+from .label_aug import aug_labels
 
-
+# @gin.configurable
 class IC15(Dataset):
 
     def __init__(self, file_list, label_path, image_path, ralph_path, num):
@@ -79,6 +80,7 @@ def load_alph(file_name):
 
 def rescale_img(img, size):
     image = np.zeros((size, size,3),dtype = np.uint8)
+    # image = np.zeros((size, size),dtype = np.uint8)
     h, w = img.shape[:2]
     length = max(h, w)
     scale = 768 / length           ###768 is the train image size
@@ -92,6 +94,7 @@ def rescale_img(img, size):
 def get_images(f_name, size, extend, n_dim):
 
     try:
+        # image_data = np.array(Image.open(f_name + extend).convert('L'))
         image_data = np.array(Image.open(f_name + extend))
         image_data = rescale_img(image_data, size)
         image_data = skimage.img_as_float32(image_data)
@@ -123,22 +126,58 @@ def build(file_list,
 
     return IC15(file_list, label_path, image_path, ralph_path, num)
 
+
+def collate_fn(batch):
+    batch = list(zip(*batch))
+    batch[0] = torch.cat([torch.from_numpy(t).unsqueeze(0) for t in batch[0]])
+    batch[1] = aug_labels(batch[1])
+    return tuple(batch)
+
+
 if __name__ == "__main__":
+
+    from torch.utils.data import DataLoader, DistributedSampler
+    import torch.distributed as dist
 
     init_gin()
 
-    dataloader = IC15()
-    train_loader = torch.utils.data.DataLoader(
-        dataloader,
-        batch_size = 4,
-        shuffle = True,
-        num_workers = 0,
-        drop_last = True,
-        pin_memory = True
-    )
+    dataset_train = IC15()
+    os.environ['MASTER_ADDR'] = 'localhost'
+    os.environ['MASTER_PORT'] = '11111'
+    dist.init_process_group("nccl", rank=0, world_size=1)
+    sampler_train = DistributedSampler(dataset_train)
+    #sampler_train = torch.utils.data.RandomSampler(dataset_train)
+    batch_sampler_train = torch.utils.data.BatchSampler(
+        sampler_train, 3, drop_last=True)
 
-    it = iter(train_loader)
-    first = next(it)
-    print(first[0].shape)
-    print(len(first[1]))
-    print(first[1])
+    data_loader_train = DataLoader(dataset_train,
+                                   batch_sampler=batch_sampler_train,
+                                   collate_fn=collate_fn,
+                                   num_workers=1)
+
+    # sampler_train = torch.utils.data.RandomSampler(dataset_train)
+    # batch_sampler_train = torch.utils.data.BatchSampler(
+    #     sampler_train,
+    #     10,
+    #     drop_last=True)
+    # train_loader = torch.utils.data.DataLoader(
+    #     dataset_train,
+    #     batch_sampler=batch_sampler_train,
+    #     collate_fn = collate_fn,
+    #     num_workers = 1,
+    # )
+
+    # it = iter(train_loader)
+    # first = next(it)
+    #
+    # print(len(first[1]))
+    # print(first[1])
+    # print(first[0][0].shape)
+
+    for sample, target in data_loader_train:
+
+        print(sample.shape)
+        print(f"target[0]: {target[0]}")
+        print(f"target[1]: {target[1]}")
+        print(len(target[0]))
+        break

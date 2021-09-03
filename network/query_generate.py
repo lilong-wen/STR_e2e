@@ -52,7 +52,7 @@ class TextEncoder(nn.Module):
         # print(f"input_mask_expanded.shape: {input_mask_expanded.shape}")
         sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
 
-        print(f"sum_embeddings.shape: {sum_embeddings.shape}")
+        # print(f"sum_embeddings.shape: {sum_embeddings.shape}")
         # print(f"sum_embeddings.shape: {sum_embeddings.shape}")
         sum_mask = torch.clamp(input_mask_expanded.sum(1), min=1e-9)
 
@@ -84,32 +84,21 @@ class TextEncoder(nn.Module):
 
         return out_emb
 
-    def forward(self, encoded_inputs, num):
+    def forward(self, encoded_inputs):
 
         output_list = []
         output_list_mask = []
-        splited_encoded_inputs = self.split_input(encoded_inputs)
 
-        for item in splited_encoded_inputs:
-            item_out = self.encoder(item)
-            item_out_mask = torch.ones(item_out.shape)
-            item_out = torch.nn.functional.pad(item_out,
-                                               (0,0,0,num-item_out.shape[0]),
-                                               mode='constant',
-                                               value=0)
-            item_out_mask = torch.nn.functional.pad(item_out_mask,
-                                               (0,0,0,num-item_out_mask.shape[0]),
-                                               mode='constant',
-                                               value=0)
-            print(item_out.shape)
-            print(item_out_mask.shape)
+        target_list, mask_list = encoded_inputs[0], encoded_inputs[1]
+
+        for target_item, mask_item in zip(target_list, mask_list):
+            item_out = self.encoder(list(target_item))
             output_list.append(item_out.unsqueeze(0))
-
-            output_list_mask.append(item_out_mask.unsqueeze(0))
+            mask_item_torch = torch.from_numpy(np.array(mask_item))
+            output_list_mask.append(mask_item_torch.unsqueeze(0))
 
         #zls = zls.unsqueeze(-1).repeat(1, 1, dims)
         zls = torch.cat(output_list)
-
         zls_mask = torch.cat(output_list_mask)
         return zls, zls_mask
 
@@ -119,3 +108,15 @@ def build_query():
     query_gen = TextEncoder()
 
     return query_gen
+
+if __name__ == "__main__":
+
+    input =  ([('', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', '', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', '', '', 'L', '', 'L', 'L', 'L', 'L', '', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L'), ('', '', '', '', '', '', '', '', '', 'L', '', '', '', 'L', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'L', 'L', '', '', '', '', '', 'L', '', '', '', 'L', '', '', '', '', '', ''), ('L', 'L', '', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', '', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', '', '', 'L', 'L', 'L', 'L', 'L', 'L', '', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', 'L', '', 'L')],[(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), (0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0), (0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0)])
+    config_file = "./test/query_gen_bert.gin"
+    gin.parse_config_file(config_file)
+
+    query_gen = TextEncoder()
+
+    out = query_gen(input)
+    print(out[0].shape)
+    print(out[1])

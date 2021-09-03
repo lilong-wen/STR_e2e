@@ -9,8 +9,8 @@ Copy-paste from torch.nn.Transformer with modifications:
 """
 import copy
 from typing import Optional, List
-from .multi_head_for_len_att import MultiHeadAttention_for_len
-
+#from multi_head_for_len_att import MultiHeadAttention_for_len
+from .multiheadattn_origin import MultiHeadAttention
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
@@ -43,26 +43,20 @@ class Transformer(nn.Module):
                 nn.init.xavier_uniform_(p)
 
     def forward(self, src, tgt, query_embed, pos_embed):
-        '''
-        src: (N, value_len, num_hidden)
-        tgt: (N, query_num, query_len, num_hidden)
-        query_embed: (query_num, query_len, num_hidden)
-        pos_embed: (N, value_len, num_hidden)
-        '''
-
-        # N, value_len, num_hidden
+        # flatten NxCxHxW to HWxNxC
+        # N, 1100, 512
         bs, h, c = src.shape
-        # src = src.permute(1, 0, 2) # value_len, N, num_hidden
-        # pos_embed = pos_embed.permute(1, 0, 2) # [1100, N, 80]
+        src = src.permute(1, 0, 2)
+        pos_embed = pos_embed.permute(1, 0, 2)
+        tgt = tgt.permute(1, 0, 2)
+        query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
 
-        # [queyr_num, N, query_len, hidden_dim]
-        query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1, 1)
-        # memory
-        hs = self.decoder(tgt, src, memory_key_padding_mask=None,
+        # memory = self.encoder(src, pos=pos_embed)
+        memory = src
+        # print(f"memory shape{memory.shape}")
+        hs = self.decoder(tgt, memory, memory_key_padding_mask=None,
                           pos=pos_embed, query_pos=query_embed)
-
-        # hs: [N, query_num, query_len, hidden_dim]
-        return hs # .transpose(1, 2) #, memory.permute(1, 2, 0).view(bs, c, h)
+        return hs#transpose(1, 2), memory.permute(1, 2, 0).view(bs, c, h)
 
 
 
@@ -89,8 +83,8 @@ class TransformerDecoder(nn.Module):
 
         intermediate = []
 
-        for layer in self.layers:
-            output = layer(output,
+        for count, layer in enumerate(self.layers):
+            output = layer(count,output,
                            memory,
                            tgt_mask=tgt_mask,
                            memory_mask=memory_mask,
@@ -119,8 +113,9 @@ class TransformerDecoderLayer(nn.Module):
                  activation="relu", normalize_before=False):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        # self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
-        self.multi_head_for_len_att = MultiHeadAttention_for_len(d_model, 100, 200, 1100, dropout=dropout)
+        #self.multihead_attn = nn.multiheadattention(d_model, nhead, dropout=dropout)
+        #self.multi_head_for_len_att = MultiHeadAttention_for_len(d_model, 100, 200, 1100, dropout=dropout)
+        self.multihead_attn = MultiHeadAttention(d_model, nhead)
         # Implementation of Feedforward model
         self.linear1 = nn.Linear(d_model, dim_feedforward)
         self.dropout = nn.Dropout(dropout)
@@ -139,9 +134,7 @@ class TransformerDecoderLayer(nn.Module):
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
         return tensor if pos is None else tensor + pos
 
-    def forward_post(self,
-                     tgt,
-                     memory,
+    def forward_post(self, count, tgt, memory,
                      tgt_mask: Optional[Tensor] = None,
                      memory_mask: Optional[Tensor] = None,
                      tgt_key_padding_mask: Optional[Tensor] = None,
@@ -149,36 +142,34 @@ class TransformerDecoderLayer(nn.Module):
                      pos: Optional[Tensor] = None,
                      query_pos: Optional[Tensor] = None):
 
-        # tgt [queyr_num, N, query_len, hidden_dim]
-        N, query_num = tgt.shape[0], tgt.shape[1]
-        tgt = tgt.reshape(-1, tgt.shape[2], tgt.shape[3])
-        query_pos = query_pos.reshape(-1, query_pos.shape[2], query_pos.shape[3])
+        # print(f"tgt.shape: {tgt.shape}")
+        # print(f"query_pos.shape: {query_pos.shape}")
         q = k = self.with_pos_embed(tgt, query_pos)
         tgt2 = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask,
                               key_padding_mask=tgt_key_padding_mask)[0]
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
 
-        tgt = tgt.reshape(-1, N, tgt.shape[1], tgt.shape[2]).permute(1, 0, 2, 3)
-        query_pos = query_pos.reshape(-1, N, query_pos.shape[1], query_pos.shape[2]).permute(1, 0, 2, 3)
-        # tgt2 = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
-        #                            key=self.with_pos_embed(memory, pos),
-        #                            value=memory, attn_mask=memory_mask,
-        #                            key_padding_mask=memory_key_padding_mask)[0]
-        tgt2 = self.multi_head_for_len_att(self.with_pos_embed(tgt, query_pos),
-                                           self.with_pos_embed(memory, pos),
-                                           memory)
-        # print(f"tgt.shape:{tgt.shape}")
-        # print(f"tgt2.shape:{tgt2.shape}")
-        tgt = tgt + self.dropout2(tgt2)
-        tgt = self.norm2(tgt)
-        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
-        tgt = tgt + self.dropout3(tgt2)
-        tgt = self.norm3(tgt)
+        print(tgt.shape)
+        tgt2 = self.multihead_attn(self.with_pos_embed(tgt, query_pos),
+                                   self.with_pos_embed(memory, pos),
+                                   memory)
+        if count != 5:
+            tgt2 = torch.sum(tgt2, dim=2).permute(1,0,2)
+            tgt = tgt + self.dropout2(tgt2)
+            tgt = self.norm2(tgt)
+            tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
+            tgt = tgt + self.dropout3(tgt2)
+            tgt = self.norm3(tgt)
+            return tgt
+        else:
+            tgt = self.dropout2(tgt2)
+            tgt = self.norm2(tgt)
+            tgt = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
+            tgt = self.dropout3(tgt)
+            tgt = self.norm3(tgt)
 
-        tgt = self.with_pos_embed(tgt, query_pos)
-
-        return tgt
+            return tgt
 
     def forward_pre(self, tgt, memory,
                     tgt_mask: Optional[Tensor] = None,
@@ -203,7 +194,7 @@ class TransformerDecoderLayer(nn.Module):
         tgt = tgt + self.dropout3(tgt2)
         return tgt
 
-    def forward(self, tgt, memory,
+    def forward(self, count, tgt, memory,
                 tgt_mask: Optional[Tensor] = None,
                 memory_mask: Optional[Tensor] = None,
                 tgt_key_padding_mask: Optional[Tensor] = None,
@@ -213,7 +204,7 @@ class TransformerDecoderLayer(nn.Module):
         if self.normalize_before:
             return self.forward_pre(tgt, memory, tgt_mask, memory_mask,
                                     tgt_key_padding_mask, memory_key_padding_mask, pos, query_pos)
-        return self.forward_post(tgt, memory, tgt_mask, memory_mask,
+        return self.forward_post(count, tgt, memory, tgt_mask, memory_mask,
                                  tgt_key_padding_mask, memory_key_padding_mask, pos, query_pos)
 
 
@@ -243,3 +234,12 @@ if __name__ == "__main__":
 
     trans = build_transformer_decoder()
     # self, src, tgt, query_embed, pos_embed
+
+    src = torch.ones((3, 1100, 512))
+    tgt = torch.ones((3, 50, 512))
+    query_embed = torch.ones((50, 512))
+    post_embed = torch.ones((3, 1100, 512))
+
+    out = trans(src, tgt, query_embed, post_embed)
+
+    print(f"out.shape: {out.shape}")

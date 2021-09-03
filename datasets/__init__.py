@@ -1,3 +1,4 @@
+import gin
 from .ds_loader import build
 
 @gin.configurable

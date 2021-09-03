@@ -4,6 +4,7 @@ Misc functions, including distributed helpers.
 
 Mostly copy-paste from torchvision references.
 """
+import random
 import os
 import subprocess
 import time
@@ -15,6 +16,8 @@ from typing import Optional, List
 import torch
 import torch.distributed as dist
 from torch import Tensor
+# from dataset.label_aug import aug_labels
+import gin
 
 # needed due to empty tensor bug in pytorch and torchvision 0.5
 import torchvision
@@ -218,6 +221,7 @@ class MetricLogger(object):
                 'time: {time}',
                 'data: {data}'
             ])
+
         MB = 1024.0 * 1024.0
         for obj in iterable:
             data_time.update(time.time() - end)
@@ -267,7 +271,9 @@ def get_sha():
 
 def collate_fn(batch):
     batch = list(zip(*batch))
-    batch[0] = nested_tensor_from_tensor_list(batch[0])
+    batch[0] = torch.cat([torch.from_numpy(t).unsqueeze(0) for t in batch[0]])
+    batch[1] = aug_labels(batch[1])
+
     return tuple(batch)
 
 
@@ -465,3 +471,39 @@ def interpolate(input, size=None, scale_factor=None, mode="nearest", align_corne
         return _new_empty_tensor(input, output_shape)
     else:
         return torchvision.ops.misc.interpolate(input, size, scale_factor, mode, align_corners)
+
+@gin.configurable
+def aug_labels(label, num=50):
+
+    label_list = [l.split(";:") for l in label]
+    label_all = [j for i in label_list for j in i]
+    mask = []
+    label_final = []
+
+    for item in label_list:
+
+        item_mask = []
+        own = list(set(item))
+        if len(own) < num / 4:
+            #own = own * int(((num / 4) - len(own)) / len(own))
+            own = own * int(num / 8)
+        others = list(set(label_all) - set(item))
+        len_own = len(own)
+        len_others = len(others)
+        if len_own + len_others < num:
+            for i in range(num - len_own - len_others):
+                others.append(others[i%len(others)])
+        else:
+            others = list(set(label_all) - set(item))[:num-len(own)]
+        item_mask = [1 for t in own]
+        item_mask +=[0 for t in others]
+        own += others
+
+        tmp = list(zip(own, item_mask))
+        random.shuffle(tmp)
+        own, item_mask = zip(*tmp)
+
+        label_final.append(own)
+        mask.append(item_mask)
+
+    return label_final, mask

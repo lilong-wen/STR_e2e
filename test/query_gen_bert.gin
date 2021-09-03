@@ -1,0 +1,5 @@
+# parameters for TextEncoder in network/query_generate.py
+TextEncoder.bert_base_model = 'emilyalsentzer/Bio_ClinicalBERT'
+TextEncoder.out_dim = 512
+TextEncoder.freeze_layers = [0,1,2,3,4,5]
+

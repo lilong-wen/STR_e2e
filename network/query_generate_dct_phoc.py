@@ -17,7 +17,8 @@ def return_alph(path):
 def encode_input_string(input_target, num=50):
 
     alph = return_alph(alph_path)
-    input_list = [t.split(";:") for t in input_target]
+    # input_list = [t.split(";:") for t in input_target]
+    input_list = input_target[0]
     embed_list = []
     output_list = []
     output_list_mask = []
@@ -46,9 +47,35 @@ def encode_input_string(input_target, num=50):
 
     return zls, zls_mask
 
+def encode_input_string_new(input_target):
+
+    alph = return_alph(alph_path)
+    # input_list = [t.split(";:") for t in input_target]
+    text_list = input_target[0]
+    mask_list = input_target[1]
+    embed_list = []
+
+    for text_item in text_list:
+        #print(text_item)
+        item_result = [dct(s, 200, alph) for s in text_item] #.transpose(0,2,1)
+        item_result = np.stack(item_result, axis=0).transpose(0, 2, 1)
+        item_result_torch = torch.from_numpy(item_result).unsqueeze(0)
+        embed_list.append(item_result_torch)
+
+    mask_torch = torch.from_numpy(np.stack(mask_list))
+
+    zls = torch.cat(embed_list, dim=0)
+
+    return zls, mask_torch
+
 def dct(s, resolution, alphabet):
+    '''
+    s: input string
+    resolution: length
+    alphabet: alphabet
+    '''
     if len(s) == 0:
-        return np.zeros(resolution * len(alphabet), dtype=np.float32)
+        return np.zeros((len(alphabet), resolution), dtype=np.float32)
     im = np.zeros([len(alphabet),len(s)], 'single')
     F = np.zeros([len(alphabet),len(s)], 'single')
     for jj in range(0,len(s)):
@@ -125,8 +152,14 @@ def phoc(word, alphabet, unigram_levels, bigram_levels=None, phoc_bigrams=None):
 
 if __name__ == "__main__":
 
-    input = ["hello;:world", "nice;:to;:meet;:you", "sdfa;:sa", "asdf", "asdfasfdfasdfas"]
+    input = ([('', 'sexy', 'END', '2014', '', '7380921', 'Days', 'END', 'COLOURFULLY', '7380921', '2014', 'END', 'Sony', '', 'END', '', 'sexy', 'COLOURFULLY', 'Sony', 'Days', '2014', 'Sony', 'Sony', '2014', 'Sony', '7380921', 'END', 'TED', 'Days', '7380921', 'Days', '7380921', 'END', 'Sony', 'TED', 'sexy', 'COLOURFULLY', '2014', 'COLOURFULLY', 'COLOURFULLY', 'TED', '', 'COLOURFULLY', 'Days', 'TED', '', 'Days', '2014', 'sexy', 'sexy'), ('', 'Days', '', 'COLOURFULLY', '7380921', 'END', 'Sony', 'COLOURFULLY', 'TED', '7380921', '', '', 'END', 'END', 'END', 'Days', 'Sony', '7380921', '2014', 'sexy', 'COLOURFULLY', '2014', 'Days', 'sexy', 'COLOURFULLY', 'END', 'TED', 'TED', 'Sony', 'Sony', 'sexy', 'Days', '7380921', 'sexy', '2014', '7380921', 'sexy', 'Days', '7380921', 'Sony', 'TED', 'sexy', 'TED', '', 'TED', 'COLOURFULLY', '2014', '', '2014', 'Sony')], [(1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 0), (0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 0, 0)])
 
-    output = encode_input_string(input)
-    for i in output:
-        print(i.shape)
+    output = encode_input_string_new(input)
+    print(output[0].shape)
+    print(output[1].shape)
+
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    output = [out.to(device) for out in output]
+    print(output[1])
+    # print(dct('', 100, return_alph(alph_path)).shape)
