@@ -116,9 +116,9 @@ Transformer.normalize_before = False
 Transformer.return_intermediate_dec = False
 
 # Parameters for TextEncoder
-# TextEncoder.bert_base_model = 'emilyalsentzer/Bio_ClinicalBERT'
-# TextEncoder.out_dim = 200
-# TextEncoder.freeze_layers = [0,1,2,3,4,5]
+TextEncoder.bert_base_model = 'emilyalsentzer/Bio_ClinicalBERT'
+TextEncoder.out_dim = 512
+TextEncoder.freeze_layers = [0,1,2,3,4,5]
 
 # Parameters for build_quester
 build_quester.device = %device

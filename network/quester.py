@@ -8,8 +8,8 @@ from torch import nn
 import numpy as np
 
 from .backbone import build_backbone
-# from .query_generate import build_query
-from .query_generate_dct_phoc import encode_input_string_new as build_query
+from .query_generate import build_query
+# from .query_generate_dct_phoc import encode_input_string_new as build_query
 
 # from .transformer_full import build_transformer
 # from .transformer_decoder import build_transformer_decoder
