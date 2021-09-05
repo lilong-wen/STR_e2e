@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 import numpy as np
+import os
 
 from .backbone import build_backbone
 from .query_generate import build_query
@@ -219,7 +220,8 @@ def get_alph(path):
 @gin.configurable
 def build_quester(device, num_queries):
 
-    path = '/home/zju/w4/STR_e2e/ic15/alph.npy'
+    path = os.path.abspath(os.getcwd()) + "/ic15/alph.npy"
+    # path = '/home/tiny/w4/STR_e2e/ic15/alph.npy'
 
     chars = get_alph(path)
     len_chars = len(chars)
@@ -239,7 +241,7 @@ def build_quester(device, num_queries):
     )
 
 
-    weight_dict = {'loss_score': 2, 'loss_text': 1}
+    weight_dict = {'loss_score': 10, 'loss_text': 5}
     losses = ['score', 'text']
 
     criterion = SetCriterion(ralph=chars, losses=losses,

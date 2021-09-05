@@ -8,10 +8,10 @@ weight_decay = 0.0001
 lr_drop = 5
 batch_size = 2
 num_workers = 2 # change here
-output_dir = "/home/zju/w4/STR_e2e/saved/"
+output_dir = "/home/tiny/w4/STR_e2e/saved/"
 clip_max_norm = 0.1
 start_epoch = 0
-epochs = 1
+epochs = 100
 device = 'cuda'
 Query_Num = 50
 n_channels = 3
@@ -39,9 +39,9 @@ D_model = 512
 # train.WdB = False
 # train.wdbprj = 'prj_Name'
 # train.train_data_list = 'iam/train.gc'
-# train.train_data_path = '/home/zju/w4/OrigamiNet/iam_data/pargs/'
+# train.train_data_path = '/home/tiny/w4/OrigamiNet/iam_data/pargs/'
 # train.test_data_list  = 'iam/val.gc'
-# train.test_data_path  = '/home/zju/w4/OrigamiNet/iam_data/pargs/'
+# train.test_data_path  = '/home/tiny/w4/OrigamiNet/iam_data/pargs/'
 # train.train_batch_size = 1
 # train.val_batch_size   = 1
 # train.workers = 1
@@ -127,13 +127,13 @@ build_quester.num_queries = %Query_Num
 #Parameters for query_generate_dct_phoc
 
 #Parameters for dataset
-build_dataset.train_file_list = "/home/zju/w4/STR_e2e/ic15/train.ln"
-build_dataset.train_label_path = "/home/zju/w4/datasets/ic15/train_gt/"
-build_dataset.train_image_path = "/home/zju/w4/datasets/ic15/train/"
-build_dataset.test_file_list = "/home/zju/w4/STR_e2e/ic15/test.ln"
-build_dataset.test_label_path = "/home/zju/w4/datasets/ic15/train_gt/"
-build_dataset.test_image_path = "/home/zju/w4/datasets/ic15/train/"
-build_dataset.ralph_path = "/home/zju/w4/STR_e2e/ic15/alph.npy"
+build_dataset.train_file_list = "/home/tiny/w4/STR_e2e/ic15/train.ln"
+build_dataset.train_label_path = "/home/tiny/w4/datasets/ic15/train_gt/"
+build_dataset.train_image_path = "/home/tiny/w4/datasets/ic15/train/"
+build_dataset.test_file_list = "/home/tiny/w4/STR_e2e/ic15/test.ln"
+build_dataset.test_label_path = "/home/tiny/w4/datasets/ic15/train_gt/"
+build_dataset.test_image_path = "/home/tiny/w4/datasets/ic15/train/"
+build_dataset.ralph_path = "/home/tiny/w4/STR_e2e/ic15/alph.npy"
 build_dataset.num = 50
 
 get_images.size = 768
