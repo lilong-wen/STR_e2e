@@ -20,7 +20,7 @@ import gin
 
 class QUESTER(nn.Module):
     """ This is the QUESTER module that performs scene text retireval """
-    def __init__(self, backbone, transformer, query_gen, query_len, num_queries, aux_loss=False):
+    def __init__(self, backbone, transformer, query_gen, chars_len, num_queries, aux_loss=False):
         """ the Initializes model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -35,8 +35,10 @@ class QUESTER(nn.Module):
         self.query_gen = query_gen
         self.transformer = transformer
         hidden_dim = transformer.d_model
+
         self.confidence_embed = MLP(hidden_dim, hidden_dim, 1, 3)
         self.query_embed = nn.Embedding(num_queries, hidden_dim)
+        self.final = nn.Linear(hidden_dim, chars_len)
 
         self.backbone = backbone
         self.aux_loss = aux_loss
@@ -45,18 +47,29 @@ class QUESTER(nn.Module):
 
         features, pos = self.backbone(samples) # N 1100 512
         query_items, _ = self.query_gen(target)
+        # print(f"query_items.shape: {query_items.shape}")
         # print(f"features.shape: {features.shape}")
         # print(f"pos.shape: {pos.shape}")
         # print(f"query_items.shape: {query_items.shape}")
         # print(f"self.query_embed.weight.shape: {self.query_embed.weight.shape}")
-        query_embed_weight = self.query_embed.weight.reshape((query_items.shape[1],
-                                                             query_items.shape[2],
-                                                             query_items.shape[3]))
-        # print(f"query_embed_weight.shape: {query_embed_weight.shape}")
-        hs = self.transformer(features, query_items, query_embed_weight, pos)[0]
+        # query_embed_weight = self.query_embed.weight.reshape((query_items.shape[1],
+        #                                                      query_items.shape[2],
+        #                                                      query_items.shape[3]))
 
-        output_confidence = self.confidence_embed(hs).sigmoid()
-        out = {'score': output_confidence, 'context': hs}
+
+        # print(f"query_embed_weight.shape: {query_embed_weight.shape}")
+        hs = self.transformer(features, query_items, self.query_embed.weight, pos)
+
+        # output_confidence = torch.sum(self.confidence_embed(hs), -2)
+        output_confidence = self.confidence_embed(hs)
+        if output_confidence.shape[0] == 1:
+           output_confidence = output_confidence.squeeze().unsqueeze(0)
+        else:
+           output_confidence = output_confidence.squeeze()
+        output_confidence = output_confidence.sigmoid()
+        # print(f"output_confidence.shape: {output_confidence.shape}")
+        hs_final = self.final(hs)
+        out = {'score': output_confidence, 'context': hs_final}
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord)
         return out
@@ -72,11 +85,14 @@ class QUESTER(nn.Module):
 
 class SetCriterion(nn.Module):
 
-    def __init__(self, ralph, losses):
+    def __init__(self, ralph, losses, weight_dict, device):
 
         super().__init__()
         self.losses = losses
-        self.converter = CTCLabelConverter(ralph)
+        self.device = device
+        self.weight_dict = weight_dict
+        self.len_alph = len(ralph)
+        self.convert = CTCLabelConverter(ralph)
 
     def loss_score(self, outputs, targets):
         """Classification loss (NLL)
@@ -87,25 +103,30 @@ class SetCriterion(nn.Module):
 
         tmp = []
         target_text, target_scores = targets
-        for i in target:
-            tmp.append(torch.FloatTensor(i).unsqueeze(0))
-        target_scores_tensor = torch.cat(tmp)
 
-        loss_score = F.cross_entropy(src_scores, target_scores)
+        src = src_scores.to(self.device)
+        target = target_scores.to(self.device)
+
+        loss_score = 0
+        for src_item, target_item in zip(src, target):
+            # print(f"src_item.shape: {src_item.shape}")
+            # print(f"target_item.shape: {target_item.shape}")
+            loss = F.cross_entropy(src_item, target_item)
+            loss_score += loss
         losses = {'loss_score': loss_score}
 
         return losses
 
     def filter_mask(self, outputs, targets):
 
-        target_txt, target_mask = targets
+        target_txt, target_mask = targets[0], targets[1]
         index_list = []
         target_txt_final = []
         outputs_list = []
         for txt_item, mask_item in zip(target_txt, target_mask):
             index = [i for i, e in enumerate(mask_item) if e != 0]
             index_list.append(index)
-            target_txt_final.append(txt_item[t] for t in index)
+            target_txt_final.append([txt_item[t] for t in index])
 
         for outputs_item, index_item in zip(outputs, index_list):
             outputs_list.append(outputs_item[index_item])
@@ -118,22 +139,30 @@ class SetCriterion(nn.Module):
         ctc_loss = torch.nn.CTCLoss(reduction='none', zero_infinity=True)
         src_context = outputs['context'] # (N, query_num, query_len, dim)
         N = src_context.shape[0]
+
         outputs_list, target_list = self.filter_mask(src_context, targets)
-        # target_context_list = [x.split(";:") for x in targets]
+        #outputs_list N num, 100, 85
+        #target_list N num
         loss_all = 0
+
         for pre_item, tar_item in zip(outputs_list, target_list):
+            #print(pre_item)
             item_drop_permute = pre_item.permute(1, 0, 2) # query_len, num, dim
             text, length = self.convert.encode(tar_item)
-            preds_size = torch.IntTensor([item_drop_permute.shape[1]] * item_drop_permute.shape[0])
+
+            input_lengths = torch.full(size=(length.shape[0],), fill_value=50, dtype=torch.long)
+            # preds_size = torch.IntTensor([item_drop_permute.shape[1]] * item_drop_permute.shape[0])
+
             loss_item = ctc_loss(item_drop_permute,
                                  text,
-                                 preds_size,
-                                 length
+                                 input_lengths,
+                                 length,
                                  ).mean()
             loss_all += loss_item
 
 
-        losses['loss_text'] = loss_all / N
+        losses = {'loss_text': loss_all / N}
+        #losses['loss_text'] = loss_all / N
 
         return losses
 
@@ -185,31 +214,36 @@ def get_alph(path):
 
     alph = np.load(path, allow_pickle='True').item()
 
-    return alph.values()
+    return alph.keys()
 
 @gin.configurable
-def build_quester(device, query_len, num_queries):
+def build_quester(device, num_queries):
 
     path = '/home/zju/w4/STR_e2e/ic15/alph.npy'
+
+    chars = get_alph(path)
+    len_chars = len(chars)
 
     backbone = build_backbone()
     # transformer = build_transformer(args)
     transformer = build_transformer_decoder()
-    # query_gen = build_query()
-    query_gen = build_query
+    query_gen = build_query()
+    # query_gen = build_query
 
     model = QUESTER(
         backbone,
         transformer,
         query_gen,
-        query_len,
+        len_chars,
         num_queries=num_queries,
     )
 
 
+    weight_dict = {'loss_score': 2, 'loss_text': 1}
     losses = ['score', 'text']
 
-    criterion = SetCriterion(ralph=get_alph(path), losses=losses)
+    criterion = SetCriterion(ralph=chars, losses=losses,
+                             weight_dict=weight_dict, device=device)
     criterion.to(device)
 
     return model, criterion

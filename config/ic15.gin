@@ -122,7 +122,6 @@ TextEncoder.freeze_layers = [0,1,2,3,4,5]
 
 # Parameters for build_quester
 build_quester.device = %device
-build_quester.query_len = 200
 build_quester.num_queries = %Query_Num
 
 #Parameters for query_generate_dct_phoc

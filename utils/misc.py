@@ -4,6 +4,7 @@ Misc functions, including distributed helpers.
 
 Mostly copy-paste from torchvision references.
 """
+import numpy as np
 import random
 import os
 import subprocess
@@ -476,7 +477,9 @@ def interpolate(input, size=None, scale_factor=None, mode="nearest", align_corne
 def aug_labels(label, num=50):
 
     label_list = [l.split(";:") for l in label]
+
     label_all = [j for i in label_list for j in i]
+
     mask = []
     label_final = []
 
@@ -486,15 +489,20 @@ def aug_labels(label, num=50):
         own = list(set(item))
         if len(own) < num / 4:
             #own = own * int(((num / 4) - len(own)) / len(own))
-            own = own * int(num / 8)
+            # own = own * int(num / 8)
+            own = own + [own[i%len(own)] for i in range(int(50/4))]
         others = list(set(label_all) - set(item))
         len_own = len(own)
         len_others = len(others)
         if len_own + len_others < num:
             for i in range(num - len_own - len_others):
-                others.append(others[i%len(others)])
+                if len(others) == 0:
+                    others.append('')
+                else:
+                    others.append(others[i%len(others)])
         else:
             others = list(set(label_all) - set(item))[:num-len(own)]
+
         item_mask = [1 for t in own]
         item_mask +=[0 for t in others]
         own += others
@@ -504,6 +512,10 @@ def aug_labels(label, num=50):
         own, item_mask = zip(*tmp)
 
         label_final.append(own)
-        mask.append(item_mask)
+        item_mask = torch.from_numpy(np.array(item_mask))
+        # mask.append(item_mask)
+        mask.append(item_mask.unsqueeze(0))
 
-    return label_final, mask
+    mask_torch = torch.cat(mask)
+
+    return label_final, mask_torch

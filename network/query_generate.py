@@ -71,7 +71,7 @@ class TextEncoder(nn.Module):
         encoded_inputs_tokens = self.tokenizer(encoded_inputs,
                                                return_tensors="pt",
                                                padding=True,
-                                               truncation=False) #.to(device)
+                                               truncation=False).to(device)
 
         outputs = self.bert_model(**encoded_inputs_tokens)
 
@@ -91,15 +91,13 @@ class TextEncoder(nn.Module):
 
         target_list, mask_list = encoded_inputs[0], encoded_inputs[1]
 
-        for target_item, mask_item in zip(target_list, mask_list):
+        for target_item in target_list:
             item_out = self.encoder(list(target_item))
             output_list.append(item_out.unsqueeze(0))
-            mask_item_torch = torch.from_numpy(np.array(mask_item))
-            output_list_mask.append(mask_item_torch.unsqueeze(0))
 
         #zls = zls.unsqueeze(-1).repeat(1, 1, dims)
         zls = torch.cat(output_list)
-        zls_mask = torch.cat(output_list_mask)
+        zls_mask = mask_list
         return zls, zls_mask
 
 

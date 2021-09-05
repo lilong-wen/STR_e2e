@@ -15,7 +15,7 @@ import pickle
 import gin
 from .label_aug import aug_labels
 
-# @gin.configurable
+@gin.configurable
 class IC15(Dataset):
 
     def __init__(self, file_list, label_path, image_path, ralph_path, num):
@@ -179,5 +179,5 @@ if __name__ == "__main__":
         print(sample.shape)
         print(f"target[0]: {target[0]}")
         print(f"target[1]: {target[1]}")
-        print(len(target[0]))
+        print(target[1].shape)
         break

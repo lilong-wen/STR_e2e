@@ -150,7 +150,7 @@ class TransformerDecoderLayer(nn.Module):
         tgt = tgt + self.dropout1(tgt2)
         tgt = self.norm1(tgt)
 
-        print(tgt.shape)
+        # print(tgt.shape)
         tgt2 = self.multihead_attn(self.with_pos_embed(tgt, query_pos),
                                    self.with_pos_embed(memory, pos),
                                    memory)

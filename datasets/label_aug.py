@@ -1,3 +1,5 @@
+import numpy as np
+import torch
 import random
 
 #@gin.configurable
@@ -32,9 +34,12 @@ def aug_labels(label, num=50):
         own, item_mask = zip(*tmp)
 
         label_final.append(own)
-        mask.append(item_mask)
+        # to torch
+        item_mask = torch.from_numpy(np.array(item_mask))
+        mask.append(item_mask.unsqueeze(0))
 
-    return label_final, mask
+    mask_torch = torch.cat(mask)
+    return label_final, mask_torch
 
 
 if __name__ == "__main__":
