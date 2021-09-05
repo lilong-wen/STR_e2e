@@ -1,4 +1,8 @@
 # STR_e2e
 
-## end to end Scene text retrieval
+## todo
+    * change absolute hard coding path
+    * loss function seems not working well
+    * code structure is a mess
+    * lots of borrowed codes should be cited
 
