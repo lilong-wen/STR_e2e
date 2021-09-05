@@ -1,6 +1,7 @@
 #  python -m torch.distributed.launch --use_env main_ddp.py
 
 import random
+import json
 import torch.distributed as dist
 import os
 import torch.multiprocessing as mp
@@ -135,7 +136,6 @@ def main(args):
                     'args': args,
                 }, checkpoint_path)
 
-        exit()
         test_stats = evaluate(
             model, criterion, data_loader_val, device
         )

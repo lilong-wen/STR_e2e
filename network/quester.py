@@ -239,7 +239,7 @@ def build_quester(device, num_queries):
     )
 
 
-    weight_dict = {'loss_score': 2, 'loss_text': 1}
+    weight_dict = {'loss_score': 10, 'loss_text': 5}
     losses = ['score', 'text']
 
     criterion = SetCriterion(ralph=chars, losses=losses,
